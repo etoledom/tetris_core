@@ -116,7 +116,7 @@ impl Game {
     fn update_next_figure(&mut self) {
         self.add_active_figure_to_board();
         let completed_lines_count = self.remove_completed_lines();
-        self.add_points_for(completed_lines_count);
+        self.add_score_for(completed_lines_count);
         self.add_new_active_figure();
         self.update_state();
     }
@@ -210,9 +210,9 @@ impl Game {
         return false;
     }
 
-    // Points
+    // Score
 
-    fn add_points_for(&mut self, completed_lines: usize) {
+    fn add_score_for(&mut self, completed_lines: usize) {
         self.points += (completed_lines as u128) * 100;
     }
 
