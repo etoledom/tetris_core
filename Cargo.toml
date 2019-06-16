@@ -3,5 +3,13 @@ name = "tetris_core"
 version = "0.1.0"
 authors = ["etoledom <etoledom@icloud.com>"]
 edition = "2018"
+description = "Simple Tetris game model with no UI or Game engine"
+repository = "https://github.com/etoledom/tetris_core"
+homepage = "https://github.com/etoledom/tetris_core"
+documentation = "https://github.com/etoledom/tetris_core"
+readme = "https://raw.githubusercontent.com/etoledom/tetris_core/master/README.md"
+keywords = ["tetris", "game"]
+categories = ["games"]
+license = "GPL-3.0-only"
 
 [dependencies]
