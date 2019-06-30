@@ -3,6 +3,13 @@ use super::{ActiveFigure, Block, Board, FigureType, Point, Size};
 
 const MOVING_PERIOD: f64 = 0.2; //secs
 
+pub enum Action {
+    MoveDown,
+    MoveLeft,
+    MoveRight,
+    Rotate,
+}
+
 pub trait Randomizer {
     fn random_between(&self, first: i32, last: i32) -> i32;
 }
@@ -15,7 +22,7 @@ pub enum GameState {
 
 pub struct Game {
     board: Board,
-    points: u128,
+    score: u64,
     active: ActiveFigure,
     next: ActiveFigure,
     waiting_time: f64,
@@ -32,7 +39,7 @@ impl Game {
         let board = Board::new(size);
         return Game {
             board,
-            points: 0,
+            score: 0,
             active,
             next,
             waiting_time: 0.0,
@@ -129,19 +136,24 @@ impl Game {
 
     // MOVEMENT FUNCTIONS
 
-    pub fn rotate(&mut self) {
-        self.rotate_active_figure();
+    pub fn perform(&mut self, action: Action) {
+        match action {
+            Action::MoveLeft => self.move_left(),
+            Action::MoveRight => self.move_right(),
+            Action::MoveDown => self.move_down(),
+            Action::Rotate => self.rotate_active_figure(),
+        }
     }
 
-    pub fn move_left(&mut self) {
+    fn move_left(&mut self) {
         self.update_active_with(self.active.moved_left());
     }
 
-    pub fn move_right(&mut self) {
+    fn move_right(&mut self) {
         self.update_active_with(self.active.moved_right());
     }
 
-    pub fn move_down(&mut self) {
+    fn move_down(&mut self) {
         self.update_active_with(self.active.moved_down());
     }
 
@@ -213,11 +225,15 @@ impl Game {
     // Score
 
     fn add_score_for(&mut self, completed_lines: usize) {
-        self.points += (completed_lines as u128) * 100;
+        self.score += (completed_lines as u64) * 100;
     }
 
     fn check_is_game_over(&self) -> bool {
         return self.active.position().y == 0 && !has_valid_position(&self.active, &self.board);
+    }
+
+    pub fn get_score(&self) -> u64 {
+        return self.score;
     }
 }
 
@@ -254,7 +270,7 @@ mod game_tests {
                 y: point.y + 1,
             })
             .collect();
-        game.move_down();
+        game.perform(Action::MoveDown);
         let drawed_points = draw_to_cartesian(game.draw());
 
         assert_eq!(drawed_points, expected);
@@ -264,18 +280,18 @@ mod game_tests {
         let mut game = get_game();
         let y = game.board.height() as i32 - 3; // 3 spaces before the floor
         game.active = ActiveFigure::new(FigureType::O, Point { x: 10, y });
-        game.move_down();
-        game.move_down();
-        game.move_down();
+        game.perform(Action::MoveDown);
+        game.perform(Action::MoveDown);
+        game.perform(Action::MoveDown);
         assert_eq!(game.active.bottom_edge(), 39);
-        game.move_down();
+        game.perform(Action::MoveDown);
         assert_eq!(game.active.bottom_edge(), 39);
     }
     #[test]
     fn test_rotate_active_figure() {
         let mut game = get_game();
         let rotated = game.active.rotated();
-        game.rotate_active_figure();
+        game.perform(Action::Rotate);
         let drawed_points = draw_to_cartesian(game.draw());
         assert_eq!(drawed_points, rotated.to_cartesian());
     }
@@ -285,7 +301,7 @@ mod game_tests {
         let mut game = get_game();
         game.active = ActiveFigure::new(FigureType::L, Point { x: 10, y: 0 });
         assert_eq!(game.active.left_edge(), 10);
-        game.move_left();
+        game.perform(Action::MoveLeft);
         assert_eq!(game.active.left_edge(), 9);
     }
     #[test]
@@ -294,17 +310,17 @@ mod game_tests {
         game.active = ActiveFigure::new(FigureType::L, Point { x: 2, y: 0 });
         game.active = game.active.rotated(); // left edge is now at x: 3
         assert_eq!(game.active.left_edge(), 3);
-        game.move_left(); // x: 2
-        game.move_left(); // x: 1
-        game.move_left(); // x: 0
-        game.move_left(); // x: 0
+        game.perform(Action::MoveLeft); // x: 2
+        game.perform(Action::MoveLeft); // x: 1
+        game.perform(Action::MoveLeft); // x: 0
+        game.perform(Action::MoveLeft); // x: 0
         assert_eq!(game.active.left_edge(), 0);
     }
     #[test]
     fn test_move_right() {
         let mut game = get_game();
         game.active = ActiveFigure::new(FigureType::L, Point { x: 0, y: 0 });
-        game.move_right();
+        game.perform(Action::MoveRight);
         assert_eq!(game.active.position(), Point { x: 1, y: 0 });
     }
     #[test]
@@ -313,8 +329,8 @@ mod game_tests {
         game.active = ActiveFigure::new(FigureType::I, Point { x: 16, y: 0 });
         game.active = game.active.rotated(); // right edge is now at 18
         assert_eq!(game.active.left_edge(), 18);
-        game.move_right(); // x: 19
-        game.move_right(); // x: 19
+        game.perform(Action::MoveRight); // x: 19
+        game.perform(Action::MoveRight); // x: 19
         assert_eq!(game.active.right_edge(), 19);
     }
     #[test]
@@ -326,40 +342,24 @@ mod game_tests {
     }
     #[test]
     fn test_active_figure_is_added_when_it_touches_the_floor() {
-        let mut game = Game::new(
-            &Size {
-                height: 4,
-                width: 10,
-            },
-            get_randomizer(5),
-        );
+        let mut game = get_game_with_size(4, 10);
+
         assert_eq!(game.active.position().y, 0); // lowest figure block is at y: 1
         assert!(game.draw_board().is_empty());
-        game.update(10.0); // y: 2
-        game.update(10.0); // y: 3
-        game.update(10.0); // -> Should add figure to board and create new active
+
+        update_loops(&mut game, 3); // Should add figure to board and create new active
 
         assert_eq!(game.active.position().y, 0);
         assert_eq!(game.draw_board().len(), 4);
     }
     #[test]
     fn test_active_figure_is_added_when_touches_block() {
-        let mut game = Game::new(
-            &Size {
-                height: 7,
-                width: 10,
-            },
-            Box::new(Random { number: 5 }),
-        );
+        let mut game = get_game_with_size(7, 10);
         game.active = ActiveFigure::new(FigureType::L, Point { x: 5, y: 5 });
         game.update(10.0); // current figure should be added to the board
         assert_eq!(game.draw_board().len(), 4); // Next figure should colide at y: 5
 
-        game.update(10.0); // y: 1
-        game.update(10.0); // y: 2
-        game.update(10.0); // y: 3
-        game.update(10.0); // y: 4
-        game.update(10.0); // y: 5
+        update_loops(&mut game, 5); // Takes y from 1 to 5
 
         assert_eq!(game.active.position().y, 0);
         assert_eq!(game.draw_board().len(), 8);
@@ -380,20 +380,14 @@ mod game_tests {
     fn test_wallkick_l_left() {
         let mut game = get_game();
         game.active = ActiveFigure::new(FigureType::L, Point { x: 0, y: 5 });
-        game.rotate();
-        game.move_left();
-        game.rotate();
+        game.perform(Action::Rotate);
+        game.perform(Action::MoveLeft);
+        game.perform(Action::Rotate);
         assert_eq!(game.active.position().x, 0);
     }
     #[test]
     fn test_is_game_over() {
-        let mut game = Game::new(
-            &Size {
-                height: 6,
-                width: 10,
-            },
-            get_randomizer(5),
-        );
+        let mut game = get_game_with_size(6, 10);
         game.board = game.board.replacing_figure_at_xy(3, 1, Some(FigureType::L));
         game.board = game.board.replacing_figure_at_xy(4, 1, Some(FigureType::L));
         game.board = game.board.replacing_figure_at_xy(5, 1, Some(FigureType::L));
@@ -403,20 +397,53 @@ mod game_tests {
     #[test]
     fn test_is_game_over_returns_false() {
         let mut game = get_game();
-        game.update(10.0);
+        update_loops(&mut game, 1);
         assert!(!game.is_game_over());
     }
+    #[test]
+    fn test_get_score() {
+        let mut game = get_game_with_size(2, 2);
+        assert_eq!(game.get_score(), 0);
+
+        // Completing line
+        game.board.replacing_figure_at_xy(0, 1, Some(FigureType::I));
+        game.board.replacing_figure_at_xy(1, 1, Some(FigureType::I));
+        game.update(10.0);
+
+        assert_eq!(game.get_score(), 100);
+    }
+    #[test]
+    fn test_double_line_score() {
+        let mut game = get_game_with_size(2, 2);
+        assert_eq!(game.get_score(), 0);
+
+        game.active = ActiveFigure::new(FigureType::O, Point{ x: 0, y: 0});
+        game.update(10.0);
+
+        assert_eq!(game.get_score(), 200);
+    }
+
+    // HELPERS
+
     fn draw_to_cartesian(draw: Vec<Block>) -> Vec<Point> {
         return draw.iter().map(|block| block.position()).collect();
     }
     fn get_game() -> Game {
-        let size = Size {
-            height: 40,
-            width: 20,
-        };
-        return Game::new(&size, Box::new(Random { number: 5 }));
+        return get_game_with_size(40, 20);
     }
-    fn get_randomizer(_number: i32) -> Box<Randomizer> {
+    fn get_game_with_size(height: usize, width: usize) -> Game {
+        let size = Size {
+            height,
+            width,
+        };
+        return Game::new(&size, get_randomizer());
+    }
+    fn get_randomizer() -> Box<Randomizer> {
         return Box::new(Random { number: 5 });
+    }
+    fn update_loops(game: &mut Game, update_times: u32) {
+        for _ in 0..update_times {
+            game.update(10.0);
+        }
     }
 }

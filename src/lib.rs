@@ -11,5 +11,5 @@ use geometry::Point;
 use graphics::Color;
 
 pub use block::Block;
-pub use game::{Game, Randomizer};
+pub use game::{Game, Randomizer, Action};
 pub use geometry::Size;
