@@ -15,7 +15,7 @@ pub enum GameState {
 
 pub struct Game {
     board: Board,
-    points: u128,
+    score: u64,
     active: ActiveFigure,
     next: ActiveFigure,
     waiting_time: f64,
@@ -32,7 +32,7 @@ impl Game {
         let board = Board::new(size);
         return Game {
             board,
-            points: 0,
+            score: 0,
             active,
             next,
             waiting_time: 0.0,
@@ -213,11 +213,15 @@ impl Game {
     // Score
 
     fn add_score_for(&mut self, completed_lines: usize) {
-        self.points += (completed_lines as u128) * 100;
+        self.score += (completed_lines as u64) * 100;
     }
 
     fn check_is_game_over(&self) -> bool {
         return self.active.position().y == 0 && !has_valid_position(&self.active, &self.board);
+    }
+
+    pub fn get_score(&self) -> u64 {
+        return self.score;
     }
 }
 
@@ -275,7 +279,7 @@ mod game_tests {
     fn test_rotate_active_figure() {
         let mut game = get_game();
         let rotated = game.active.rotated();
-        game.rotate_active_figure();
+        game.rotate();
         let drawed_points = draw_to_cartesian(game.draw());
         assert_eq!(drawed_points, rotated.to_cartesian());
     }
@@ -326,40 +330,24 @@ mod game_tests {
     }
     #[test]
     fn test_active_figure_is_added_when_it_touches_the_floor() {
-        let mut game = Game::new(
-            &Size {
-                height: 4,
-                width: 10,
-            },
-            get_randomizer(5),
-        );
+        let mut game = get_game_with_size(4, 10);
+
         assert_eq!(game.active.position().y, 0); // lowest figure block is at y: 1
         assert!(game.draw_board().is_empty());
-        game.update(10.0); // y: 2
-        game.update(10.0); // y: 3
-        game.update(10.0); // -> Should add figure to board and create new active
+
+        update_loops(&mut game, 3); // Should add figure to board and create new active
 
         assert_eq!(game.active.position().y, 0);
         assert_eq!(game.draw_board().len(), 4);
     }
     #[test]
     fn test_active_figure_is_added_when_touches_block() {
-        let mut game = Game::new(
-            &Size {
-                height: 7,
-                width: 10,
-            },
-            Box::new(Random { number: 5 }),
-        );
+        let mut game = get_game_with_size(7, 10);
         game.active = ActiveFigure::new(FigureType::L, Point { x: 5, y: 5 });
         game.update(10.0); // current figure should be added to the board
         assert_eq!(game.draw_board().len(), 4); // Next figure should colide at y: 5
 
-        game.update(10.0); // y: 1
-        game.update(10.0); // y: 2
-        game.update(10.0); // y: 3
-        game.update(10.0); // y: 4
-        game.update(10.0); // y: 5
+        update_loops(&mut game, 5); // Takes y from 1 to 5
 
         assert_eq!(game.active.position().y, 0);
         assert_eq!(game.draw_board().len(), 8);
@@ -387,13 +375,7 @@ mod game_tests {
     }
     #[test]
     fn test_is_game_over() {
-        let mut game = Game::new(
-            &Size {
-                height: 6,
-                width: 10,
-            },
-            get_randomizer(5),
-        );
+        let mut game = get_game_with_size(6, 10);
         game.board = game.board.replacing_figure_at_xy(3, 1, Some(FigureType::L));
         game.board = game.board.replacing_figure_at_xy(4, 1, Some(FigureType::L));
         game.board = game.board.replacing_figure_at_xy(5, 1, Some(FigureType::L));
@@ -403,20 +385,53 @@ mod game_tests {
     #[test]
     fn test_is_game_over_returns_false() {
         let mut game = get_game();
-        game.update(10.0);
+        update_loops(&mut game, 1);
         assert!(!game.is_game_over());
     }
+    #[test]
+    fn test_get_score() {
+        let mut game = get_game_with_size(2, 2);
+        assert_eq!(game.get_score(), 0);
+
+        // Completing line
+        game.board.replacing_figure_at_xy(0, 1, Some(FigureType::I));
+        game.board.replacing_figure_at_xy(1, 1, Some(FigureType::I));
+        game.update(10.0);
+
+        assert_eq!(game.get_score(), 100);
+    }
+    #[test]
+    fn test_double_line_score() {
+        let mut game = get_game_with_size(2, 2);
+        assert_eq!(game.get_score(), 0);
+
+        game.active = ActiveFigure::new(FigureType::O, Point{ x: 0, y: 0});
+        game.update(10.0);
+
+        assert_eq!(game.get_score(), 200);
+    }
+
+    // HELPERS
+
     fn draw_to_cartesian(draw: Vec<Block>) -> Vec<Point> {
         return draw.iter().map(|block| block.position()).collect();
     }
     fn get_game() -> Game {
-        let size = Size {
-            height: 40,
-            width: 20,
-        };
-        return Game::new(&size, Box::new(Random { number: 5 }));
+        return get_game_with_size(40, 20);
     }
-    fn get_randomizer(_number: i32) -> Box<Randomizer> {
+    fn get_game_with_size(height: usize, width: usize) -> Game {
+        let size = Size {
+            height,
+            width,
+        };
+        return Game::new(&size, get_randomizer());
+    }
+    fn get_randomizer() -> Box<Randomizer> {
         return Box::new(Random { number: 5 });
+    }
+    fn update_loops(game: &mut Game, update_times: u32) {
+        for _ in 0..update_times {
+            game.update(10.0);
+        }
     }
 }
