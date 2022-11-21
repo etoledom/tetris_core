@@ -26,12 +26,12 @@ pub struct Game {
     active: ActiveFigure,
     next: ActiveFigure,
     waiting_time: f64,
-    randomizer: Box<Randomizer + 'static>,
+    randomizer: Box<dyn Randomizer + 'static>,
     state: GameState,
 }
 
 impl Game {
-    pub fn new(size: &Size, randomizer: Box<Randomizer + 'static>) -> Game {
+    pub fn new(size: &Size, randomizer: Box<dyn Randomizer + 'static>) -> Game {
         let start_point = Game::figure_start_point(size.width);
         let active = Game::random_figure(start_point, &randomizer);
         let next = Game::random_figure(start_point, &randomizer);
@@ -53,7 +53,7 @@ impl Game {
         return Point { x: mid_point, y: 0 };
     }
 
-    fn random_figure(position: Point, randomizer: &Box<Randomizer + 'static>) -> ActiveFigure {
+    fn random_figure(position: Point, randomizer: &Box<dyn Randomizer + 'static>) -> ActiveFigure {
         let figure = match randomizer.random_between(0, 6) {
             0 => FigureType::I,
             1 => FigureType::J,
@@ -438,7 +438,7 @@ mod game_tests {
         };
         return Game::new(&size, get_randomizer());
     }
-    fn get_randomizer() -> Box<Randomizer> {
+    fn get_randomizer() -> Box<dyn Randomizer> {
         return Box::new(Random { number: 5 });
     }
     fn update_loops(game: &mut Game, update_times: u32) {
