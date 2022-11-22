@@ -1,6 +1,6 @@
 [package]
 name = "tetris_core"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["etoledom <etoledom@icloud.com>"]
 edition = "2018"
 description = "Simple Tetris game model with no UI or Game engine"
